@@ -9,10 +9,11 @@ const { isAuthenticated } = require("./middlewares/auth");
 require("dotenv").config();
 
 const app = express();
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+const PORT = process.env.PORT || 3000;  // ローカル開発用に3000をフォールバックとして設定
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });
+
 
 // app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.json()); 
