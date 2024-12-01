@@ -9,7 +9,11 @@ const { isAuthenticated } = require("./middlewares/auth");
 require("dotenv").config();
 
 const app = express();
-const PORT = 6057;
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
+
 // app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.json()); 
 // 静的ファイルを提供する設定（動画ファイルが "/movies" フォルダにある場合）　※これがないと再生されない
