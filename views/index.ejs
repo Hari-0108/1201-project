@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>動画一覧</title>
+    <link rel="stylesheet" href="/css/movies.css">
+    <link rel="stylesheet" href="/css/template.css">
+</head>
+<body>
+  <%- include('partials/header') %>
+    <h1>動画一覧</h1>
+    <% if (videos && videos.length) { %>
+        <ul class="video-list">
+            <% videos.forEach((video) => { %>
+                <li class="video-item">
+                    <h3 class="video-title"><%= video.title %></h3>
+                    <p class="video-date">投稿日: <%= video.upload_date %></p> <!-- 投稿日を表示 -->
+                    <video width="320" height="240" controls>
+                        <source src="/movies/<%= video.file_path %>" type="video/mp4">
+                        お使いのブラウザでは動画の再生がサポートされていません。
+                    </video>
+                </li>
+            <% }); %>
+        </ul>
+    <% } else { %>
+        <p>動画がありません。</p>
+    <% } %>
+</body>
+</html>

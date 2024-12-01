@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>お問い合わせフォーム</title>
+    <link rel="stylesheet" href="/css/template.css">
+    <link rel="stylesheet" href="/css/contact.css"> <!-- 共通のCSSファイル -->
+</head>
+<body>
+    <%- include('../partials/header') %>
+    <div class="contact-form-container">
+        <h1>確認画面</h1>
+        <p>以下の内容で送信します。よろしいですか？</p>
+        <p><strong>お名前:</strong> <%= name %></p>
+        <p><strong>メールアドレス:</strong> <%= email %></p>
+        <p><strong>メッセージ:</strong></p>
+        <p><%= message %></p>
+        
+        <form action="/send" method="POST">
+            <input type="hidden" name="name" value="<%= name %>">
+            <input type="hidden" name="email" value="<%= email %>">
+            <input type="hidden" name="message" value="<%= message %>">
+            <button type="submit">送信</button>
+        </form>
+        <a href="/contact">戻る</a>
+    </div>
+    
+</body>
+</html>

@@ -1,0 +1,80 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f4f4;
+}
+
+h1, h2 {
+    text-align: center;
+    color: #333;
+}
+
+/* 動画一覧 */
+.video-list {
+    display: flex;
+    flex-direction: column; /* 縦並びに変更 */
+    align-items: center; /* 中央揃え */
+    width: 100%; /* 画面幅に合わせる */
+    padding: 20px;
+    margin: 0;
+}
+
+.video-item {
+    width: 100%; /* 横幅100%にする */
+    max-width: 900px; /* 最大幅を設定 */
+    margin: 15px 0; /* 上下に余白を設定 */
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column; /* 縦並び */
+    align-items: center;
+}
+
+.video-title {
+    font-size: 1.5rem;
+    color: #333;
+    margin-bottom: 10px;
+}
+
+.video-date {
+    font-size: 1rem;
+    color: #777;
+    margin-bottom: 15px;
+}
+
+video {
+    width: 100%; /* 横幅100%に合わせる */
+    height: auto; /* 高さを自動調整 */
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+
+/* レスポンシブデザイン */
+@media (max-width: 768px) {
+    .video-list {
+        width: 95%;
+    }
+
+    .video-item {
+        width: 100%;
+        padding: 10px;
+    }
+
+    video {
+        max-width: 100%; /* モバイルでは幅100% */
+        height: auto;
+    }
+}
+
+@media (max-width: 480px) {
+    nav ul li {
+        display: block;
+        margin: 10px 0;
+    }
+    .video-item {
+        width: 100%;
+    }
+}
