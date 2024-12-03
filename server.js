@@ -5,28 +5,28 @@ const bodyParser = require('body-parser');
 const nodemailer = require('nodemailer');
 const session = require('express-session');
 const MySQLStore = require('express-mysql-session')(session);
-const { isAuthenticated } = require("./middlewares/auth"); 
+const { isAuthenticated } = require("./middlewares/auth");
 require("dotenv").config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;  // ローカル開発用に3000をフォールバックとして設定
+const PORT = process.env.PORT || 3000;
+
+// サーバー起動
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
 
-
-// app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.json()); 
-// 静的ファイルを提供する設定（動画ファイルが "/movies" フォルダにある場合）　※これがないと再生されない
+// ミドルウェア設定
+app.use(express.json());
 app.use('/movies', express.static('movies'));
 app.use('/css', express.static('public/css'));
 
-
+// セッション管理
 app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 1000 * 60 * 10 },  // 10分間
+  cookie: { maxAge: 1000 * 60 * 10 },
   store: new MySQLStore({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
@@ -35,43 +35,31 @@ app.use(session({
   })
 }));
 
-
+// デバッグ用: セッション情報をログ
 app.use((req, res, next) => {
-    if (req.session.cookie) {
-      console.log("現在のクッキー設定:", req.session.cookie);
-      console.log("クッキーの有効期限 (maxAge):", req.session.cookie.maxAge);
-    } else {
-      console.log("セッションが未初期化です");
-    }
-    next();
-  });
+  if (req.session.cookie) {
+    console.log("現在のクッキー設定:", req.session.cookie);
+  } else {
+    console.log("セッションが未初期化です");
+  }
+  next();
+});
 
-
-// MySQL接続設定
-const connection = mysql.createConnection({
+// DB接続設定 (接続プールを使用)
+const pool = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
 });
 
-// EJSをビューエンジンとして使用
-app.set("view engine", "ejs");
-app.use(bodyParser.urlencoded({ extended: true }));
-
-// DB接続確認
-connection.connect((err) => {
-  if (err) {
-    console.error("Error connecting to the database:", err.stack);
-    return;
-  }
-  console.log("Connected to the database!");
-});
-
-// 非同期クエリ用のラッパー関数を定義
-const queryAsync = (query, params) => {
+// 非同期クエリ関数
+const queryAsync = (query, params = []) => {
   return new Promise((resolve, reject) => {
-    connection.execute(query, params, (err, results) => {
+    pool.execute(query, params, (err, results) => {
       if (err) {
         reject(err);
       } else {
@@ -80,34 +68,36 @@ const queryAsync = (query, params) => {
     });
   });
 };
-// 登録ページの表示
-app.get('/register', (req, res) => {
-    res.render('register', { error: null }); // 初回ロード時にはエラーを渡さない
+
+// プール状態のログ
+pool.on('acquire', (connection) => {
+  console.log('Connection %d acquired', connection.threadId);
 });
-// checkUserExistence 関数を使ってユーザーの重複を確認
+pool.on('release', (connection) => {
+  console.log('Connection %d released', connection.threadId);
+});
+
+// EJSをビューエンジンとして設定
+app.set("view engine", "ejs");
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// 登録ページ表示
+app.get('/register', (req, res) => {
+  res.render('register', { error: null });
+});
+
+// ユーザー存在確認
 const checkUserExistence = async (username) => {
-  try {
-      const results = await queryAsync('SELECT COUNT(*) AS count FROM users WHERE username = ?', [username]);
-      return results[0].count > 0;
-  } catch (err) {
-      console.error('Error querying user existence:', err);
-      throw err;
-  }
+  const results = await queryAsync('SELECT COUNT(*) AS count FROM users WHERE username = ?', [username]);
+  return results[0].count > 0;
 };
 
-
-// ユーザーIDとパスワードのバリデーションを行う関数
+// 入力バリデーション
 const validateUserInput = (username, password) => {
-  if (!username || !password) {
-    return 'ユーザーIDとパスワードは必須です';
-  }
-  if (username.length < 6) {
-    return 'ユーザーIDは6文字以上にしてください';
-  }
-  if (password.length < 6) {
-    return 'パスワードは6文字以上である必要があります';
-  }
-  return null; // バリデーション成功
+  if (!username || !password) return 'ユーザーIDとパスワードは必須です';
+  if (username.length < 6) return 'ユーザーIDは6文字以上にしてください';
+  if (password.length < 6) return 'パスワードは6文字以上である必要があります';
+  return null;
 };
 
 // ユーザー登録処理
@@ -116,104 +106,60 @@ app.post('/register', async (req, res) => {
 
   // バリデーションチェック
   const error = validateUserInput(username, password);
-  if (error) {
-    return res.render('register', { error });
-  }
+  if (error) return res.render('register', { error });
 
   try {
     // ユーザー名の重複チェック
     const userExists = await checkUserExistence(username);
-    if (userExists) {
-      return res.render('register', { error: 'このユーザーIDはすでに登録されています' });
-    }
+    if (userExists) return res.render('register', { error: 'このユーザーIDはすでに登録されています' });
 
-    // パスワードをハッシュ化して登録
+    // パスワードをハッシュ化
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // ユーザーをデータベースに登録
+    // ユーザーを登録
     const insertQuery = 'INSERT INTO users (username, password) VALUES (?, ?)';
-    connection.query(insertQuery, [username, hashedPassword], (err) => {
-      if (err) {
-        console.error('登録エラー: ', err);
-        return res.status(500).send('ユーザー登録に失敗しました');
-      }
-      res.redirect('/login'); // 登録完了後にログインページへリダイレクト
-    });
+    await queryAsync(insertQuery, [username, hashedPassword]);
 
+    res.redirect('/login'); // ログインページへリダイレクト
   } catch (err) {
     console.error('登録エラー: ', err);
-    return res.status(500).send('サーバーエラーが発生しました');
+    res.status(500).send('サーバーエラーが発生しました');
   }
 });
 
-// ログインページの表示
-app.get('/login', (req, res) => {
-    res.render('login'); // views/login.ejs を表示
-  });
-  
-  // ログイン処理
-  app.post('/login', async (req, res) => {
-    const { username, password } = req.body;
-  
-    if (!username || !password) {
-      return res.status(400).send('ユーザーIDとパスワードは必須です');
-    }
-  
-    // データベースからユーザーを検索
-    const query = 'SELECT * FROM users WHERE username = ?';
-    connection.query(query, [username], async (err, results) => {
-      if (err) {
-        console.error('Database query error:', err);
-        return res.status(500).send('サーバーエラーが発生しました');
-      }
-  
-      if (results.length === 0) {
-        return res.render('login', { error: 'ユーザーIDまたはパスワードが間違っています' });
-      }
-  
-      const user = results[0];
-      // パスワードの照合
-      const passwordMatch = await bcrypt.compare(password, user.password);
-      if (!passwordMatch) {
-        return res.render('login', { error: 'ユーザーIDまたはパスワードが間違っています' });
-      }
-  
-      // ログイン成功時にセッションにユーザー情報を保存
-      req.session.userId = user.id;
-      req.session.username = user.username;
-  
-      // ログイン成功後にセッションにフラグをセット
-      req.session.loginSuccessMessage = 'ログイン成功！';
-  
-      // indexページへリダイレクト
-      res.redirect('/');
-    });
-  });
-// indexページのルート
-// app.get("/index", isAuthenticated, (req, res) => {
-// ログインが必要なページ
-// app.get("/", isAuthenticated, (req, res) => {
-//     connection.query("SELECT * FROM videos", (err, results) => {
-//         if (err) {
-//             console.error("Error fetching data:", err.stack);
-//             return res.status(500).send("Database query error");
-//         }
-//         const successMessage = req.session.loginSuccessMessage || null;
-//         if (successMessage) {
-//             req.session.loginSuccessMessage = null; // メッセージをリセット
-//         }
-//         res.render("index", { data: results, success: successMessage, videos: results });
-//     });
-// });
+// ログイン処理
+app.post('/login', async (req, res) => {
+  const { username, password } = req.body;
 
-// isAuthenticated ミドルウェアでログイン状態をチェック
+  if (!username || !password) return res.status(400).send('ユーザーIDとパスワードは必須です');
+
+  try {
+    const results = await queryAsync('SELECT * FROM users WHERE username = ?', [username]);
+    if (results.length === 0) return res.render('login', { error: 'ユーザーIDまたはパスワードが間違っています' });
+
+    const user = results[0];
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    if (!passwordMatch) return res.render('login', { error: 'ユーザーIDまたはパスワードが間違っています' });
+
+    req.session.userId = user.id;
+    req.session.username = user.username;
+    req.session.loginSuccessMessage = 'ログイン成功！';
+
+    res.redirect('/');
+  } catch (err) {
+    console.error('ログインエラー: ', err);
+    res.status(500).send('サーバーエラーが発生しました');
+  }
+});
+
+// 動画一覧ページ
 app.get("/", isAuthenticated, async (req, res) => {
   try {
-      const results = await queryAsync("SELECT * FROM videos", []);
-      res.render("index", { data: results, success: req.session.loginSuccessMessage, videos: results });
+    const results = await queryAsync("SELECT * FROM videos");
+    res.render("index", { data: results, success: req.session.loginSuccessMessage, videos: results });
   } catch (err) {
-      console.error("Error fetching videos:", err);
-      res.status(500).send("Database query error");
+    console.error("動画データ取得エラー:", err);
+    res.status(500).send("データベースクエリエラー");
   }
 });
 
