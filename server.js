@@ -127,13 +127,17 @@ app.post('/register', async (req, res) => {
   }
 });
 
-// ログイン処理
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) return res.status(400).send('ユーザーIDとパスワードは必須です');
 
   try {
+    // データベース接続チェック
+    if (!dbConnection || dbConnection.state === 'disconnected') {
+      await connectToDatabase(); // 接続をリトライ
+    }
+
     const results = await queryAsync('SELECT * FROM users WHERE username = ?', [username]);
     if (results.length === 0) return res.render('login', { error: 'ユーザーIDまたはパスワードが間違っています' });
 
@@ -151,6 +155,7 @@ app.post('/login', async (req, res) => {
     res.status(500).send('サーバーエラーが発生しました');
   }
 });
+
 
 // 動画一覧ページ
 app.get("/", isAuthenticated, async (req, res) => {
